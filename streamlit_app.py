@@ -1,5 +1,5 @@
 import streamlit as st
 
-st.title('🎈 App Name')
+st.title('CreditVision')
 
-st.write('Hello world!')
+st.write('Data-driven app for credit scoring and borrower segmentation using predictive and clustering model')
