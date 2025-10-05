@@ -1,13 +1,12 @@
-# 📦 Streamlit App Starter Kit 
-```
-⬆️ (Replace above with your app's name)
-```
+# Credit Risk Scoring and Borrower Profiling System
 
-Description of the app ...
+The proposed mini project aims to build a system that can clean and analyze borrower financial data, predict default risk, classify applicants by likelihood of default, and discover borrower behavior groups using clustering techniques.
+
+
 
 ## Demo App
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://app-starter-kit.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://dp-machinelearning.streamlit.app/)
 
 ## GitHub Codespaces
 
