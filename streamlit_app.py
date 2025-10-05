@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.linear_model import (
     LinearRegression, Ridge, Lasso, ElasticNet, RANSACRegressor, LogisticRegression
 )
@@ -56,7 +56,7 @@ use_sample = st.sidebar.checkbox("Use Sample Dataset")
 
 # -------------------- DATA LOADING --------------------
 if use_sample:
-    df = pd.read_csv("3a7927f5-91dd-4869-9177-e61360ed72ae.csv")  # your file in repo
+    df = pd.read_csv("3a7927f5-91dd-4869-9177-e61360ed72ae.csv")
     st.sidebar.success("✅ Using sample dataset from repo.")
 elif uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -73,20 +73,35 @@ if df is not None:
     st.subheader("🧹 Data Preprocessing")
     df_clean = df.copy()
 
-    # Example encodings
+    # Manual encoding example
     if 'loan_grade' in df_clean.columns:
         grade_mapping = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7}
-        df_clean['loan_grade_encoded'] = df_clean['loan_grade'].map(grade_mapping)
+        df_clean['loan_grade'] = df_clean['loan_grade'].map(grade_mapping)
 
+    # Auto-encode categorical columns
     for col in df_clean.select_dtypes(include='object').columns:
         df_clean[col] = df_clean[col].astype('category').cat.codes
 
-    st.write("✅ Categorical columns encoded successfully.")
+    # Drop rows with missing values
+    df_clean.dropna(inplace=True)
+
+    st.write("✅ Categorical columns encoded and missing values removed.")
     st.dataframe(df_clean.head())
 
-    # -------------------- TRAIN TEST SPLIT --------------------
-    y = df_clean.iloc[:, -1]
-    X = df_clean.iloc[:, :-1]
+    # -------------------- SELECT TARGET COLUMN --------------------
+    target_column = "loan_status"
+    if target_column not in df_clean.columns:
+        st.error(f"❌ Target column '{target_column}' not found in dataset.")
+        st.stop()
+
+    # Encode target if needed
+    if df_clean[target_column].dtype == 'object':
+        le = LabelEncoder()
+        y = le.fit_transform(df_clean[target_column])
+    else:
+        y = df_clean[target_column]
+
+    X = df_clean.drop(columns=[target_column])
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
@@ -95,11 +110,15 @@ if df is not None:
     st.sidebar.write(f"Train samples: {X_train.shape[0]}")
     st.sidebar.write(f"Test samples: {X_test.shape[0]}")
 
-    # -------------------- TABS FOR MODELS --------------------
+    # -------------------- DEBUG INFO --------------------
+    st.sidebar.write("🔍 Target Class Distribution:")
+    st.sidebar.write(pd.Series(y).value_counts())
+
+    # -------------------- TABS --------------------
     tab1, tab2, tab3 = st.tabs(["📈 Regression", "🔍 Classification", "🧠 PCA Analysis"])
 
     # ======================================================
-    # REGRESSION TAB
+    # REGRESSION
     # ======================================================
     with tab1:
         st.subheader("📈 Regression Models Evaluation")
@@ -120,13 +139,17 @@ if df is not None:
         total = len(regression_models)
 
         for i, (name, model) in enumerate(regression_models.items()):
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
-            mae = mean_absolute_error(y_test, y_pred)
-            mse = mean_squared_error(y_test, y_pred)
-            rmse = np.sqrt(mse)
-            r2 = r2_score(y_test, y_pred)
-            results.append([name, mae, mse, rmse, r2])
+            try:
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                mae = mean_absolute_error(y_test, y_pred)
+                mse = mean_squared_error(y_test, y_pred)
+                rmse = np.sqrt(mse)
+                r2 = r2_score(y_test, y_pred)
+                results.append([name, mae, mse, rmse, r2])
+            except Exception as e:
+                results.append([name, "Error", "Error", "Error", "Error"])
+                st.warning(f"⚠️ {name} failed: {e}")
             progress.progress((i + 1) / total)
 
         results_df = pd.DataFrame(results, columns=["Model", "MAE", "MSE", "RMSE", "R²"])
@@ -142,7 +165,7 @@ if df is not None:
         st.bar_chart(results_df.set_index("Model")["R²"])
 
     # ======================================================
-    # CLASSIFICATION TAB
+    # CLASSIFICATION
     # ======================================================
     with tab2:
         st.subheader("🔍 Classification Models Evaluation")
@@ -161,15 +184,19 @@ if df is not None:
         total = len(classification_models)
 
         for i, (name, model) in enumerate(classification_models.items()):
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
-            y_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
-            acc = accuracy_score(y_test, y_pred)
-            prec = precision_score(y_test, y_pred, zero_division=0)
-            rec = recall_score(y_test, y_pred, zero_division=0)
-            f1 = f1_score(y_test, y_pred, zero_division=0)
-            auc = roc_auc_score(y_test, y_proba) if y_proba is not None else np.nan
-            results.append([name, acc, prec, rec, f1, auc])
+            try:
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                y_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
+                acc = accuracy_score(y_test, y_pred)
+                prec = precision_score(y_test, y_pred, zero_division=0)
+                rec = recall_score(y_test, y_pred, zero_division=0)
+                f1 = f1_score(y_test, y_pred, zero_division=0)
+                auc = roc_auc_score(y_test, y_proba) if y_proba is not None else np.nan
+                results.append([name, acc, prec, rec, f1, auc])
+            except Exception as e:
+                results.append([name, "Error", "Error", "Error", "Error", "Error"])
+                st.warning(f"⚠️ {name} failed: {e}")
             progress.progress((i + 1) / total)
 
         results_df = pd.DataFrame(results, columns=["Model", "Accuracy", "Precision", "Recall", "F1", "AUC"])
@@ -185,7 +212,7 @@ if df is not None:
         st.bar_chart(results_df.set_index("Model")["Accuracy"])
 
     # ======================================================
-    # PCA TAB
+    # PCA
     # ======================================================
     with tab3:
         st.subheader("🧠 Principal Component Analysis (PCA)")
@@ -198,15 +225,4 @@ if df is not None:
 
         explained_var = np.cumsum(pca.explained_variance_ratio_)
         n_components_95 = np.argmax(explained_var >= 0.95) + 1
-        st.write(f"✅ Number of components for 95% variance: **{n_components_95}**")
-
-        fig, ax = plt.subplots()
-        ax.plot(range(1, len(explained_var) + 1), explained_var, marker='o')
-        ax.axhline(0.95, color='r', linestyle='--')
-        ax.set_xlabel("Number of Components")
-        ax.set_ylabel("Cumulative Explained Variance")
-        ax.set_title("Cumulative Explained Variance by PCA")
-        st.pyplot(fig)
-
-else:
-    st.info("👆 Please upload or select a dataset from the sidebar to begin analysis.")
+        st.write(f"✅ Number of components for 95% variance: **{
